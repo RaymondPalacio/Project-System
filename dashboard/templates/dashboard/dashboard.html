@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BloomSight</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+    <style>
+        /* General layout and styling */
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f7f2f2;  /* Soft off-white */
+            color: #4f4a4a;
+        }
+
+        h1 {
+            font-family: 'Shadows Into Light', cursive;
+            color: #D1A1D0;  /* Soft Lavender */
+            margin-bottom: 30px;
+        }
+
+        .container {
+            margin-top: 50px;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 800px; /* Limit the width for larger screens */
+            margin-left: auto;
+            margin-right: auto;
+            border: 3px solid #D1A1D0;  /* Lavender border */
+        }
+
+        #cameraContainer {
+            position: relative;
+            width: 100%;
+            height: 480px;
+            background-color: #F5A5B8;  /* Blush Pink background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 10px;
+            border: 3px solid #A8D08D;  /* Leaf Green border */
+            overflow: hidden;
+        }
+
+        #camera {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+        }
+
+        #capturedImage {
+            display: none;
+            max-width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+
+        #captureButtonsContainer {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 20px; /* Space between camera and buttons */
+        }
+
+        #captureButtonsContainer button {
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.2);
+            flex-grow: 1; /* Make buttons take equal space */
+            background-color: #F1D267; /* Butterfly Yellow */
+            color: #ffffff;
+        }
+
+        #captureButtonsContainer button:hover {
+            background-color: #D1A1D0; /* Lavender Hover */
+        }
+
+        .alert {
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        #flowerDescription {
+            font-size: 18px;
+            color: #A8D08D;  /* Leaf Green */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="text-center">BloomSight</h1>
+
+        <!-- Camera Container -->
+        <div id="cameraContainer">
+            <video id="camera" class="w-100" height="480" autoplay style="display:none;"></video>
+            <canvas id="snapshot" style="display:none;"></canvas>
+        </div>
+
+        <!-- Buttons Container -->
+        <div id="captureButtonsContainer">
+            <button id="startCameraBtn" class="btn btn-success">Start Camera</button>
+            <button id="stopCameraBtn" class="btn btn-danger" style="display:none;">Stop Camera</button>
+            <button id="detectBtn" class="btn btn-primary" style="display:none;">Detect Flower</button>
+        </div>
+
+        <!-- Detected Flower Type -->
+        <div id="alertMessages">
+            <p id="flowerType" class="text-center mt-3"></p>
+            <p id="flowerDescription" class="text-center mt-3"></p>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS & Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+
+    <script>
+        const camera = document.getElementById('camera');
+        const snapshot = document.getElementById('snapshot');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const stopCameraBtn = document.getElementById('stopCameraBtn');
+        const detectBtn = document.getElementById('detectBtn');
+        const flowerType = document.getElementById('flowerType');
+        const flowerDescription = document.getElementById('flowerDescription');
+    
+        let cameraStream;
+    
+        // Start the camera
+        async function startCamera() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                camera.srcObject = cameraStream;
+                camera.style.display = 'block';  // Show the camera video
+                camera.play();  // Start video playback
+                startCameraBtn.hidden = true;  // Hide the "Start Camera" button
+                stopCameraBtn.style.display = 'block';  // Show the "Stop Camera" button
+                detectBtn.style.display = 'block';  // Show the "Detect Flower" button
+            } catch (err) {
+                flowerType.textContent = "Error accessing the camera.";
+            }
+        }
+    
+        // Stop the camera
+        function stopCamera() {
+            if (cameraStream) {
+                const tracks = cameraStream.getTracks();
+                tracks.forEach(track => track.stop());  // Stop all camera tracks
+                camera.srcObject = null;
+                camera.style.display = 'none';  // Hide the camera video
+                startCameraBtn.hidden = false;  // Show the "Start Camera" button
+                stopCameraBtn.style.display = 'none';  // Hide the "Stop Camera" button
+                detectBtn.style.display = 'none';  // Hide the "Detect Flower" button
+                // Clear text when camera is stopped
+                flowerType.textContent = '';
+                flowerDescription.textContent = '';
+            }
+        }
+    
+        // Detect the flower
+        detectBtn.addEventListener('click', async () => {
+            // Clear the previous flower info before new detection
+            flowerType.textContent = '';
+            flowerDescription.textContent = '';
+    
+            const canvasContext = snapshot.getContext('2d');
+            snapshot.width = camera.videoWidth;
+            snapshot.height = camera.videoHeight;
+            canvasContext.drawImage(camera, 0, 0, snapshot.width, snapshot.height);
+    
+            const imageData = snapshot.toDataURL('image/jpeg');
+    
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ image: imageData }),
+                });
+    
+                if (!response.ok) {
+                    throw new Error('Failed to detect flower.');
+                }
+    
+                const result = await response.json();
+    
+                // Display the flower type and description
+                flowerType.textContent = result.flowerType || 'Unknown';
+                const description = result.description || 'No description available for this flower.';
+                flowerDescription.textContent = description;
+    
+            } catch (error) {
+                flowerType.textContent = 'Error detecting flower.';
+                flowerDescription.textContent = '';
+            }
+        });
+    
+        startCameraBtn.addEventListener('click', startCamera);
+        stopCameraBtn.addEventListener('click', stopCamera);
+    </script>
+    
+</body>
+
+</html>
